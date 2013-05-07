@@ -7,6 +7,10 @@ from xhtml2pdf import pisa # TODO: Change this when the lib changes.
 import StringIO
 import os
 
+import tempfile
+import urllib2
+
+
 #===============================================================================
 # HELPERS
 #===============================================================================
@@ -18,6 +22,8 @@ def fetch_resources(uri, rel):
     Callback to allow xhtml2pdf/reportlab to retrieve Images,Stylesheets, etc.
     `uri` is the href attribute from the html link element.
     `rel` gives a relative path, but it's not used here.
+
+    if path is not relative to MEDIA_URL or STATIC_URL, attempt is made to download it from it's url
 
     """
     if uri.startswith(settings.MEDIA_URL):
@@ -32,9 +38,17 @@ def fetch_resources(uri, rel):
                 if os.path.exists(path):
                     break
     else:
-        raise UnsupportedMediaPathException(
-                                'media urls must start with %s or %s' % (
-                                settings.MEDIA_ROOT, settings.STATIC_ROOT))
+        try:
+            suffix = '.%s'%os.path.splitext(uri)[1][1:]
+            tf = tempfile.NamedTemporaryFile(suffix=suffix,mode="wb",prefix=getattr(settings,'TEMP_PATH','tmp'),delete=False)
+            response = urllib2.urlopen(uri)
+            tf.file.write(response.read())
+            path = tf.name
+            tf.close()
+        except Exception, e:
+            raise UnsupportedMediaPathException(
+                                    'could not find or download file.  media urls must start with %s or %s' % (
+                                    settings.MEDIA_ROOT, settings.STATIC_ROOT))
     return path
 
 def generate_pdf_template_object(template_object, file_object, context):
